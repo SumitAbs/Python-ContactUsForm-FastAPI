@@ -1,0 +1,4 @@
+fastapi[standard]
+sqlalchemy
+python-multipart
+email-validator
