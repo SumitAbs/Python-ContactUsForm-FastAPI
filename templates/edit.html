@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Contact - {{ entry.name }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; }
+        input, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        /* Style for read-only fields to look distinct */
+        input[readonly] { background-color: #f9f9f9; cursor: not-allowed; border-color: #eee; color: #777; }
+        .error-msg { color: #d9534f; font-size: 13px; margin-top: 5px; display: block; }
+        button { background-color: #28a745; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; }
+        button:hover { background-color: #218838; }
+        
+        /* Gallery Management Styles */
+        .gallery-manager { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; border: 1px solid #eee; padding: 10px; border-radius: 5px; }
+        .img-card { text-align: center; border: 1px solid #ddd; padding: 5px; border-radius: 4px; }
+        .img-card img { width: 100%; height: 80px; object-fit: cover; border-radius: 2px; }
+        .delete-checkbox { margin-top: 5px; cursor: pointer; color: #d9534f; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <a href="/view-details" style="text-decoration:none; color:#007bff;">← Back to Listing</a>
+    <h2>Edit Contact Record</h2>
+
+    <form id="editForm" action="/update/{{ entry.id }}" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Full Name (Read Only)</label>
+            <input type="text" name="name" value="{{ entry.name }}" readonly>
+        </div>
+        
+        <div class="form-group">
+            <label>Email Address (Read Only)</label>
+            <input type="email" name="email" value="{{ entry.email }}" readonly>
+        </div>
+
+        <div class="form-group">
+            <label>Phone Number (Read Only)</label>
+            <input type="text" name="phone" value="{{ entry.phone }}" readonly>
+        </div>
+
+        <div class="form-group">
+            <label for="message">Message (Editable)</label>
+            <textarea id="message" name="message" rows="4" required>{{ entry.message }}</textarea>
+            <span id="messageError" class="error-msg"></span>
+        </div>
+        <div class="form-group">
+            <label>Change Profile Image (Optional):</label>
+            <div style="margin-bottom: 10px;">
+                <img src="/{{ entry.image_path }}" width="80" style="border-radius:50%;">
+            </div>
+            <input type="file" name="image" accept="image/*">
+        </div>
+
+        <div class="form-group">
+            <label>Change Resume/PDF (Optional):</label>
+            <p style="font-size: 0.9em; color: #666;">Current: {{ entry.pdf_path.split('/')[-1] }}</p>
+            <input type="file" name="pdf" accept="application/pdf">
+        </div>
+
+        <div class="form-group">
+            <label>Current Gallery (Check to Delete)</label>
+            <div class="gallery-manager">
+                {% for img in gallery %}
+                <div class="img-card">
+                    <img src="/uploads/images/{{ img }}" alt="Gallery Image">
+                    <div class="delete-checkbox">
+                        <input type="checkbox" name="delete_images" value="{{ img }}"> Delete
+                    </div>
+                </div>
+                {% else %}
+                <p style="grid-column: span 3; color: #888;">No images in gallery.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Add New Images to Gallery</label>
+            <input type="file" id="new_gallery" name="new_gallery" accept="image/*" multiple>
+            <span id="multipleError" class="error-msg"></span>
+        </div>
+
+        <button type="submit" id="submitBtn">Update Record</button>
+    </form>
+</body>
+</html>
