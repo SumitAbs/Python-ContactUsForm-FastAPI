@@ -45,6 +45,7 @@ Base.metadata.create_all(bind=engine)
 # --- APP INITIALIZATION ---
 app = FastAPI(title="Professional Contact System")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # --- DEPENDENCIES & UTILITIES ---
