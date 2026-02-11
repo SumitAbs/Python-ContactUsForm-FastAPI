@@ -6,7 +6,7 @@ from uuid import uuid4
 from typing import Generator, List
 from dotenv import load_dotenv
 load_dotenv()
-from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Depends, Request
+from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Depends, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -16,6 +16,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from pydantic import EmailStr
 from starlette.middleware.sessions import SessionMiddleware
 from datetime import datetime, timezone
+from utils.mailer import send_contact_email # Import your new utility
 
 # --- CONFIGURATION & CONSTANTS ---
 UPLOAD_BASE = "uploads"
@@ -101,6 +102,7 @@ async def home_page(request: Request):
 @app.post("/contact-submit/")
 async def handle_form_submission(
     request: Request,
+    background_tasks: BackgroundTasks,
     name: str = Form(..., min_length=2, max_length=50),
     email: EmailStr = Form(...),
     phone: str = Form(...),
@@ -140,7 +142,7 @@ async def handle_form_submission(
                     gallery_paths.append(os.path.basename(saved_path))
                     
     except Exception as e:
-        # Professional English comment: Log error and notify user [cite: 2026-02-02]
+        # Professional English comment: Log error and notify user
         raise HTTPException(status_code=500, detail="System error during file processing.")
 
     # 3. Database Persistence
@@ -156,6 +158,8 @@ async def handle_form_submission(
     )
     db.add(new_contact)
     db.commit()
+
+    background_tasks.add_task(send_contact_email, email, name, message)
     
     flash(request, "Submission successful including gallery images!", "success")
     return RedirectResponse(url="/view-details", status_code=303)
