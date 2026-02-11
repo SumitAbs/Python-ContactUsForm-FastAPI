@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <h2>Contact Us</h2>
+    <form action="/contact-submit/" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Full Name:</label>
+            <input type="text" name="name" minlength="2" maxlength="50" required>
+        </div>
+        <div class="form-group">
+            <label>Email Address:</label>
+            <input type="email" name="email" required>
+        </div>
+        <div class="form-group">
+            <label>Phone Number:</label>
+            <input type="tel" name="phone" placeholder="+1234567890" required>
+        </div>
+        <div class="form-group">
+            <label>Message (min 10 chars):</label>
+            <textarea name="message" minlength="10" maxlength="1000" rows="4" required></textarea>
+        </div>
+        <div class="form-group">
+            <label>Profile Image (JPG/PNG):</label>
+            <input type="file" name="image" accept="image/*" required>
+        </div>
+        <div class="form-group">
+            <label>Resume (PDF only):</label>
+            <input type="file" name="pdf" accept="application/pdf" required>
+        </div>
+        <button type="submit">Send Message</button>
+    </form>
+</body>
+</html>

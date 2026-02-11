@@ -1,16 +1,18 @@
 import os
 from fastapi.staticfiles import StaticFiles
-import os
 import shutil
 from typing import List
-from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Depends
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from pydantic import EmailStr
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi import Request
+
+from uuid import uuid4
+from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Depends, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import EmailStr, field_validator
+import re
 
 templates = Jinja2Templates(directory="templates")
 # --- 1. SETUP DIRECTORIES ---
@@ -20,6 +22,18 @@ PDF_DIR = os.path.join(UPLOAD_BASE, "pdfs")
 
 for folder in [IMAGE_DIR, PDF_DIR]:
     os.makedirs(folder, exist_ok=True)
+
+# Ensure unique filenames to prevent overwriting
+def save_upload_file(upload_file: UploadFile, folder: str) -> str:
+    extension = os.path.splitext(upload_file.filename)[1]
+    unique_filename = f"{uuid4()}{extension}" # Prevents collisions
+    file_path = os.path.join(folder, unique_filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(upload_file.file, buffer)
+    return file_path
+
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB Limit
 
 # --- 2. DATABASE SETUP (SQLite) ---
 SQLALCHEMY_DATABASE_URL = "sqlite:///./contact_us.db"
@@ -52,46 +66,86 @@ def get_db():
         db.close()
 
 # --- 4. THE CONTACT FORM LOGIC ---
+# @app.post("/contact-submit/")
+# async def submit_contact(
+#     name: str = Form(..., min_length=2),
+#     email: EmailStr = Form(...),
+#     phone: str = Form(..., pattern=r"^\+?1?\d{9,15}$"), # Regex for phone
+#     message: str = Form(..., max_length=500),
+#     image: UploadFile = File(...),
+#     pdf: UploadFile = File(...),
+#     db: Session = Depends(get_db)
+# ):
+#     # Validation for File Types
+#     if not image.content_type.startswith("image/"):
+#         raise HTTPException(status_code=400, detail="File 'image' must be an image.")
+#     if pdf.content_type != "application/pdf":
+#         raise HTTPException(status_code=400, detail="File 'pdf' must be a PDF document.")
+
+#     # Save Image
+#     img_save_path = os.path.join(IMAGE_DIR, image.filename)
+#     with open(img_save_path, "wb") as buffer:
+#         shutil.copyfileobj(image.file, buffer)
+
+#     # Save PDF
+#     pdf_save_path = os.path.join(PDF_DIR, pdf.filename)
+#     with open(pdf_save_path, "wb") as buffer:
+#         shutil.copyfileobj(pdf.file, buffer)
+
+#     # Save to SQLite
+#     new_contact = ContactEntry(
+#         name=name,
+#         email=email,
+#         phone=phone,
+#         message=message,
+#         image_path=img_save_path,
+#         pdf_path=pdf_save_path
+#     )
+#     db.add(new_contact)
+#     db.commit()
+#     db.refresh(new_contact)
+
+#     return {"status": "success", "data_id": new_contact.id}
+
 @app.post("/contact-submit/")
 async def submit_contact(
-    name: str = Form(..., min_length=2),
+    name: str = Form(..., min_length=2, max_length=50),
     email: EmailStr = Form(...),
-    phone: str = Form(..., pattern=r"^\+?1?\d{9,15}$"), # Regex for phone
-    message: str = Form(..., max_length=500),
+    phone: str = Form(...),
+    message: str = Form(..., min_length=10, max_length=1000),
     image: UploadFile = File(...),
     pdf: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    # Validation for File Types
+    # 1. Phone Number Validation (Regex)
+    if not re.match(r"^\+?1?\d{9,15}$", phone):
+        raise HTTPException(status_code=400, detail="Invalid phone number format.")
+
+    # 2. Image Validation
     if not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File 'image' must be an image.")
+        raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
+    
+    # 3. PDF Validation
     if pdf.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="File 'pdf' must be a PDF document.")
+        raise HTTPException(status_code=400, detail="Uploaded file must be a PDF.")
 
-    # Save Image
-    img_save_path = os.path.join(IMAGE_DIR, image.filename)
-    with open(img_save_path, "wb") as buffer:
-        shutil.copyfileobj(image.file, buffer)
+    # 4. Save files using the helper (Categorized & Unique)
+    try:
+        img_path = save_upload_file(image, IMAGE_DIR)
+        pdf_path = save_upload_file(pdf, PDF_DIR)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error saving files.")
 
-    # Save PDF
-    pdf_save_path = os.path.join(PDF_DIR, pdf.filename)
-    with open(pdf_save_path, "wb") as buffer:
-        shutil.copyfileobj(pdf.file, buffer)
-
-    # Save to SQLite
-    new_contact = ContactEntry(
-        name=name,
-        email=email,
-        phone=phone,
-        message=message,
-        image_path=img_save_path,
-        pdf_path=pdf_save_path
+    # 5. Save to Database
+    new_entry = ContactEntry(
+        name=name, email=email, phone=phone, 
+        message=message, image_path=img_path, pdf_path=pdf_path
     )
-    db.add(new_contact)
+    db.add(new_entry)
     db.commit()
-    db.refresh(new_contact)
+    
+    return RedirectResponse(url="/view-details", status_code=303)
 
-    return {"status": "success", "data_id": new_contact.id}
 
 # --- 5. GET DETAILS URL ---
 @app.get("/contacts/")
