@@ -21,8 +21,9 @@ from datetime import datetime, timezone
 UPLOAD_BASE = "uploads"
 IMAGE_DIR = os.path.join(UPLOAD_BASE, "images")
 PDF_DIR = os.path.join(UPLOAD_BASE, "pdfs")
-DATABASE_URL = "sqlite:///./contact_us.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB Limit
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # Ensure organized directory structure exists
 for folder in [IMAGE_DIR, PDF_DIR]:
@@ -56,7 +57,6 @@ app = FastAPI(title="Professional Contact System")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 # Add Session Middleware (SumitProject is 'secret-key') for Flash Message
-SECRET_KEY = os.getenv("SECRET_KEY")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 templates = Jinja2Templates(directory="templates")
 
