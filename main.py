@@ -13,6 +13,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import EmailStr
 
+from starlette.middleware.sessions import SessionMiddleware
+
 # --- CONFIGURATION & CONSTANTS ---
 UPLOAD_BASE = "uploads"
 IMAGE_DIR = os.path.join(UPLOAD_BASE, "images")
@@ -46,6 +48,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Professional Contact System")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+# Add Session Middleware (SumitProject is 'secret-key') for Flash Message
+app.add_middleware(SessionMiddleware, secret_key="SumitProject")
 templates = Jinja2Templates(directory="templates")
 
 # --- DEPENDENCIES & UTILITIES ---
@@ -67,6 +71,18 @@ def save_file(upload_file: UploadFile, destination_folder: str) -> str:
         shutil.copyfileobj(upload_file.file, buffer)
     return full_path
 
+# Helper to add messages to the session
+def flash(request: Request, message: str, category: str = "success"):
+    if "flash_messages" not in request.session:
+        request.session["flash_messages"] = []
+    request.session["flash_messages"].append({"message": message, "category": category})
+
+# Helper to get and clear messages (for the template)
+def get_flashed_messages(request: Request):
+    return request.session.pop("flash_messages") if "flash_messages" in request.session else []
+
+# Update Jinja2 configuration to make this helper available in all templates
+templates.env.globals['get_flashed_messages'] = get_flashed_messages
 # --- ROUTES ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -76,13 +92,14 @@ async def home_page(request: Request):
 
 @app.post("/contact-submit/")
 async def handle_form_submission(
+    request: Request,
     name: str = Form(..., min_length=2, max_length=50),
     email: EmailStr = Form(...),
     phone: str = Form(...),
     message: str = Form(..., min_length=10, max_length=1000),
     image: UploadFile = File(...),
     pdf: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Handles validation, file storage, and database persistence for form data."""
     
@@ -109,6 +126,7 @@ async def handle_form_submission(
     db.add(new_contact)
     db.commit()
     
+    flash(request, "Your message has been sent successfully!", "success")
     return RedirectResponse(url="/view-details", status_code=303)
 
 @app.get("/view-details", response_class=HTMLResponse)
