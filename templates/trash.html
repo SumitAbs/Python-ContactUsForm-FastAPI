@@ -19,10 +19,8 @@
             {{ msg.message }}
         </div>
     {% endfor %}
-    <h2>Contact Submissions</h2>
-    <a href="/view-trash">
-        🗑️ View Trash (Deleted Records)
-    </a>
+    <h2>Deleted Records (Trash)</h2>
+    <a href="/view-details">Back to Active Records</a>
     <table>
         <thead>
             <tr>
@@ -46,9 +44,8 @@
 
                 <td>
                     <a href="/view-detail/{{ contact.id }}">View</a> |
-                    <a href="/edit/{{ contact.id }}">Edit</a> |
-                    <form action="/delete/{{ contact.id }}" method="post">
-                        <button type="submit" class="btn-delete" onclick="return confirm('Confirm delete?')">Delete</button>
+                    <form action="/restore/{{ contact.id }}" method="post" style="display:inline;">
+                        <button type="submit">Restore</button>
                     </form>
                 </td>
             </tr>
