@@ -9,8 +9,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import EmailStr
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from fastapi import Request
 
-
+templates = Jinja2Templates(directory="templates")
 # --- 1. SETUP DIRECTORIES ---
 UPLOAD_BASE = "uploads"
 IMAGE_DIR = os.path.join(UPLOAD_BASE, "images")
@@ -97,66 +99,23 @@ async def get_all_contacts(db: Session = Depends(get_db)):
     return db.query(ContactEntry).all()
 
 @app.get("/", response_class=HTMLResponse)
-async def main():
-    with open("index.html", "r") as f:
-        return f.read()
+async def main(request: Request):
+    """
+    Renders the main contact form.
+    """
+    return templates.TemplateResponse("index.html", {"request": request})
     
 @app.get("/view-details", response_class=HTMLResponse)
-async def view_details(db: Session = Depends(get_db)):
-    contacts = db.query(ContactEntry).all()
-    
-    # Simple HTML Table Construction
-    table_content = ""
-    for c in contacts:
-        table_content += f"""
-        <tr>
-            <td>{c.id}</td>
-            <td>{c.name}</td>
-            <td>{c.email}</td>
-            <td>{c.phone}</td>
-            <td>
-                <a href='/{c.image_path}' target='_blank'>View Image</a>
-            </td>
-            <td>
-                <a href='/{c.pdf_path}' target='_blank'>View PDF</a>
-            </td>
-            <td>
-                <form action="/delete/{c.id}" method="post" style="display:inline;">
-                    <button type="submit" onclick="return confirm('Are you sure?')">Delete</button>
-                </form>
-            </td>
-        </tr>
-        """
-    
-    html_template = f"""
-    <html>
-        <head>
-            <style>
-                table {{ width: 100%; border-collapse: collapse; }}
-                th, td {{ padding: 10px; border: 1px solid #ddd; text-align: left; }}
-                th {{ background-color: #f2f2f2; }}
-            </style>
-        </head>
-        <body>
-            <h2>Contact Submissions</h2>
-            <table>
-                <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Image</th>
-                    <th>PDF</th>
-                    <th>Action</th>
-                </tr>
-                {table_content}
-            </table>
-            <br>
-            <a href="/">Back to Form</a>
-        </body>
-    </html>
+async def view_details(request: Request, db: Session = Depends(get_db)):
     """
-    return html_template
+    Fetches contacts from the database and renders the separate details.html file.
+    """
+    contacts = db.query(ContactEntry).all()
+    # We pass the 'contacts' list directly to the template
+    return templates.TemplateResponse(
+        "details.html", 
+        {"request": request, "contacts": contacts}
+    )
 
 @app.post("/delete/{contact_id}")
 async def delete_contact(contact_id: int, db: Session = Depends(get_db)):

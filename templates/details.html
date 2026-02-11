@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Submissions Dashboard</title>
+    <style>
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .btn-delete { color: red; cursor: pointer; background: none; border: none; text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h2>Contact Submissions</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Files</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for contact in contacts %}
+            <tr>
+                <td>{{ contact.id }}</td>
+                <td>{{ contact.name }}</td>
+                <td>{{ contact.email }}</td>
+                <td>
+                    <a href="/{{ contact.image_path }}" target="_blank">Image</a> | 
+                    <a href="/{{ contact.pdf_path }}" target="_blank">PDF</a>
+                </td>
+                <td>
+                    <form action="/delete/{{ contact.id }}" method="post">
+                        <button type="submit" class="btn-delete" onclick="return confirm('Confirm delete?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <br>
+    <a href="/">Back to Form</a>
+</body>
+</html>
