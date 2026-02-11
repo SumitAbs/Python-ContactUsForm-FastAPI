@@ -1,51 +1,40 @@
 import os
-from fastapi.staticfiles import StaticFiles
+import re
 import shutil
-from typing import List
+from uuid import uuid4
+from typing import Generator
+
+from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Depends, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from pydantic import EmailStr
 
-from uuid import uuid4
-from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import EmailStr, field_validator
-import re
-
-templates = Jinja2Templates(directory="templates")
-# --- 1. SETUP DIRECTORIES ---
+# --- CONFIGURATION & CONSTANTS ---
 UPLOAD_BASE = "uploads"
 IMAGE_DIR = os.path.join(UPLOAD_BASE, "images")
 PDF_DIR = os.path.join(UPLOAD_BASE, "pdfs")
+DATABASE_URL = "sqlite:///./contact_us.db"
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB Limit
 
+# Ensure organized directory structure exists
 for folder in [IMAGE_DIR, PDF_DIR]:
     os.makedirs(folder, exist_ok=True)
 
-# Ensure unique filenames to prevent overwriting
-def save_upload_file(upload_file: UploadFile, folder: str) -> str:
-    extension = os.path.splitext(upload_file.filename)[1]
-    unique_filename = f"{uuid4()}{extension}" # Prevents collisions
-    file_path = os.path.join(folder, unique_filename)
-    
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(upload_file.file, buffer)
-    return file_path
-
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB Limit
-
-# --- 2. DATABASE SETUP (SQLite) ---
-SQLALCHEMY_DATABASE_URL = "sqlite:///./contact_us.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+# --- DATABASE CORE ---
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 class ContactEntry(Base):
+    """Database model for storing contact form submissions."""
     __tablename__ = "contacts"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    email = Column(String)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False)
     phone = Column(String)
     message = Column(String)
     image_path = Column(String)
@@ -53,62 +42,39 @@ class ContactEntry(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- 3. APP & DEPENDENCIES ---
-app = FastAPI()
-
+# --- APP INITIALIZATION ---
+app = FastAPI(title="Professional Contact System")
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+templates = Jinja2Templates(directory="templates")
 
-def get_db():
+# --- DEPENDENCIES & UTILITIES ---
+def get_db() -> Generator:
+    """Dependency to provide a database session per request."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-# --- 4. THE CONTACT FORM LOGIC ---
-# @app.post("/contact-submit/")
-# async def submit_contact(
-#     name: str = Form(..., min_length=2),
-#     email: EmailStr = Form(...),
-#     phone: str = Form(..., pattern=r"^\+?1?\d{9,15}$"), # Regex for phone
-#     message: str = Form(..., max_length=500),
-#     image: UploadFile = File(...),
-#     pdf: UploadFile = File(...),
-#     db: Session = Depends(get_db)
-# ):
-#     # Validation for File Types
-#     if not image.content_type.startswith("image/"):
-#         raise HTTPException(status_code=400, detail="File 'image' must be an image.")
-#     if pdf.content_type != "application/pdf":
-#         raise HTTPException(status_code=400, detail="File 'pdf' must be a PDF document.")
+def save_file(upload_file: UploadFile, destination_folder: str) -> str:
+    """Saves an uploaded file with a unique UUID to prevent naming collisions."""
+    ext = os.path.splitext(upload_file.filename)[1]
+    filename = f"{uuid4()}{ext}"
+    full_path = os.path.join(destination_folder, filename)
+    
+    with open(full_path, "wb") as buffer:
+        shutil.copyfileobj(upload_file.file, buffer)
+    return full_path
 
-#     # Save Image
-#     img_save_path = os.path.join(IMAGE_DIR, image.filename)
-#     with open(img_save_path, "wb") as buffer:
-#         shutil.copyfileobj(image.file, buffer)
+# --- ROUTES ---
 
-#     # Save PDF
-#     pdf_save_path = os.path.join(PDF_DIR, pdf.filename)
-#     with open(pdf_save_path, "wb") as buffer:
-#         shutil.copyfileobj(pdf.file, buffer)
-
-#     # Save to SQLite
-#     new_contact = ContactEntry(
-#         name=name,
-#         email=email,
-#         phone=phone,
-#         message=message,
-#         image_path=img_save_path,
-#         pdf_path=pdf_save_path
-#     )
-#     db.add(new_contact)
-#     db.commit()
-#     db.refresh(new_contact)
-
-#     return {"status": "success", "data_id": new_contact.id}
+@app.get("/", response_class=HTMLResponse)
+async def home_page(request: Request):
+    """Renders the primary contact submission form."""
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.post("/contact-submit/")
-async def submit_contact(
+async def handle_form_submission(
     name: str = Form(..., min_length=2, max_length=50),
     email: EmailStr = Form(...),
     phone: str = Form(...),
@@ -117,81 +83,51 @@ async def submit_contact(
     pdf: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    # 1. Phone Number Validation (Regex)
-    if not re.match(r"^\+?1?\d{9,15}$", phone):
-        raise HTTPException(status_code=400, detail="Invalid phone number format.")
-
-    # 2. Image Validation
-    if not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
+    """Handles validation, file storage, and database persistence for form data."""
     
-    # 3. PDF Validation
+    # 1. Validation Logic
+    if not re.match(r"^\+?1?\d{9,15}$", phone):
+        raise HTTPException(status_code=400, detail="Invalid phone format.")
+    if not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Image file must be an image type.")
     if pdf.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Uploaded file must be a PDF.")
+        raise HTTPException(status_code=400, detail="PDF file must be a PDF document.")
 
-    # 4. Save files using the helper (Categorized & Unique)
+    # 2. File Persistence
     try:
-        img_path = save_upload_file(image, IMAGE_DIR)
-        pdf_path = save_upload_file(pdf, PDF_DIR)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Error saving files.")
+        img_path = save_file(image, IMAGE_DIR)
+        pdf_path = save_file(pdf, PDF_DIR)
+    except Exception:
+        raise HTTPException(status_code=500, detail="System error during file upload.")
 
-    # 5. Save to Database
-    new_entry = ContactEntry(
-        name=name, email=email, phone=phone, 
+    # 3. Database Persistence
+    new_contact = ContactEntry(
+        name=name, email=email, phone=phone,
         message=message, image_path=img_path, pdf_path=pdf_path
     )
-    db.add(new_entry)
+    db.add(new_contact)
     db.commit()
     
     return RedirectResponse(url="/view-details", status_code=303)
 
-
-# --- 5. GET DETAILS URL ---
-@app.get("/contacts/")
-async def get_all_contacts(db: Session = Depends(get_db)):
-    return db.query(ContactEntry).all()
-
-@app.get("/", response_class=HTMLResponse)
-async def main(request: Request):
-    """
-    Renders the main contact form.
-    """
-    return templates.TemplateResponse("index.html", {"request": request})
-    
 @app.get("/view-details", response_class=HTMLResponse)
-async def view_details(request: Request, db: Session = Depends(get_db)):
-    """
-    Fetches contacts from the database and renders the separate details.html file.
-    """
+async def dashboard_page(request: Request, db: Session = Depends(get_db)):
+    """Displays a dashboard of all submitted contact entries."""
     contacts = db.query(ContactEntry).all()
-    # We pass the 'contacts' list directly to the template
-    return templates.TemplateResponse(
-        "details.html", 
-        {"request": request, "contacts": contacts}
-    )
+    return templates.TemplateResponse("details.html", {"request": request, "contacts": contacts})
 
 @app.post("/delete/{contact_id}")
-async def delete_contact(contact_id: int, db: Session = Depends(get_db)):
-    """
-    Deletes a contact record from the database and removes 
-    the associated files from the local storage.
-    """
-    # Find the record
-    contact = db.query(ContactEntry).filter(ContactEntry.id == contact_id).first()
-    
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact not found")
+async def remove_entry(contact_id: int, db: Session = Depends(get_db)):
+    """Removes a record from the database and deletes its associated files."""
+    entry = db.query(ContactEntry).filter(ContactEntry.id == contact_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found.")
 
-    # 1. Delete the physical files if they exist
-    for file_path in [contact.image_path, contact.pdf_path]:
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
+    # Cleanup local storage
+    for path in [entry.image_path, entry.pdf_path]:
+        if path and os.path.exists(path):
+            os.remove(path)
 
-    # 2. Delete the database record
-    db.delete(contact)
+    db.delete(entry)
     db.commit()
-
-    # Redirect back to the details page
-    return HTMLResponse(content="<script>window.location.href='/view-details';</script>")
-
+    return RedirectResponse(url="/view-details", status_code=303)
