@@ -1,8 +1,9 @@
 import os
 import re
 import shutil
+import json
 from uuid import uuid4
-from typing import Generator
+from typing import Generator, List
 
 from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,7 +13,6 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import EmailStr
-
 from starlette.middleware.sessions import SessionMiddleware
 
 # --- CONFIGURATION & CONSTANTS ---
@@ -41,6 +41,8 @@ class ContactEntry(Base):
     message = Column(String)
     image_path = Column(String)
     pdf_path = Column(String)
+    # New field to store list of filenames as a JSON string
+    multiple_images = Column(String)
 
 Base.metadata.create_all(bind=engine)
 
@@ -99,34 +101,57 @@ async def handle_form_submission(
     message: str = Form(..., min_length=10, max_length=1000),
     image: UploadFile = File(...),
     pdf: UploadFile = File(...),
+    multiple_images: List[UploadFile] = File(None), # Accepts multiple files
     db: Session = Depends(get_db),
 ):
-    """Handles validation, file storage, and database persistence for form data."""
+    """Handles validation, multi-file storage, and JSON database persistence."""
     
     # 1. Validation Logic
     if not re.match(r"^\+?1?\d{9,15}$", phone):
         raise HTTPException(status_code=400, detail="Invalid phone format.")
     if not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Image file must be an image type.")
+        raise HTTPException(status_code=400, detail="Profile image must be an image type.")
     if pdf.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="PDF file must be a PDF document.")
+        raise HTTPException(status_code=400, detail="Resume must be a PDF document.")
 
-    # 2. File Persistence
+    # 2. File Persistence (Mandatory & Gallery)
     try:
+        # Save single profile image and PDF
         img_path = save_file(image, IMAGE_DIR)
         pdf_path = save_file(pdf, PDF_DIR)
-    except Exception:
-        raise HTTPException(status_code=500, detail="System error during file upload.")
+
+        # Save Multiple Gallery Images
+        gallery_paths = []
+        if multiple_images:
+            for file in multiple_images:
+                # Check if file is actually uploaded (filename exists)
+                if file.filename:
+                    # Professional Check: Validate each gallery file is an image
+                    if not file.content_type.startswith("image/"):
+                        continue # Skip non-image files
+                    
+                    saved_path = save_file(file, IMAGE_DIR)
+                    gallery_paths.append(os.path.basename(saved_path))
+                    
+    except Exception as e:
+        # Professional English comment: Log error and notify user [cite: 2026-02-02]
+        raise HTTPException(status_code=500, detail="System error during file processing.")
 
     # 3. Database Persistence
     new_contact = ContactEntry(
-        name=name, email=email, phone=phone,
-        message=message, image_path=img_path, pdf_path=pdf_path
+        name=name, 
+        email=email, 
+        phone=phone,
+        message=message, 
+        image_path=img_path, 
+        pdf_path=pdf_path,
+        # Convert list of filenames to JSON string for easy future management
+        multiple_images=json.dumps(gallery_paths) 
     )
     db.add(new_contact)
     db.commit()
     
-    flash(request, "Your message has been sent successfully!", "success")
+    flash(request, "Submission successful including gallery images!", "success")
     return RedirectResponse(url="/view-details", status_code=303)
 
 @app.get("/view-details", response_class=HTMLResponse)
@@ -134,6 +159,35 @@ async def dashboard_page(request: Request, db: Session = Depends(get_db)):
     """Displays a dashboard of all submitted contact entries."""
     contacts = db.query(ContactEntry).all()
     return templates.TemplateResponse("details.html", {"request": request, "contacts": contacts})
+
+@app.get("/view-detail/{contact_id}", response_class=HTMLResponse)
+async def get_entry_detail(request: Request, contact_id: int, db: Session = Depends(get_db)):
+    """
+    Fetches a single contact entry by ID and renders the detailed view.
+    """
+    # 1. Fetch the record from the database
+    entry = db.query(ContactEntry).filter(ContactEntry.id == contact_id).first()
+    
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    # 2. Parse the JSON string back into a Python list for the gallery
+    gallery_images = []
+    if entry.multiple_images:
+        try:
+            gallery_images = json.loads(entry.multiple_images)
+        except json.JSONDecodeError:
+            gallery_images = []
+
+    # 3. Render the specific detail template
+    return templates.TemplateResponse(
+        "view_single.html", 
+        {
+            "request": request, 
+            "entry": entry, 
+            "gallery": gallery_images
+        }
+    )
 
 @app.post("/delete/{contact_id}")
 async def remove_entry(contact_id: int, db: Session = Depends(get_db)):

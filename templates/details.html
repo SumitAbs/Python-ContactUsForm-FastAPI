@@ -40,7 +40,9 @@
                     <a href="/{{ contact.image_path }}" target="_blank">Image</a> | 
                     <a href="/{{ contact.pdf_path }}" target="_blank">PDF</a>
                 </td>
+
                 <td>
+                    <a href="/view-detail/{{ contact.id }}">View Full Record</a> |
                     <form action="/delete/{{ contact.id }}" method="post">
                         <button type="submit" class="btn-delete" onclick="return confirm('Confirm delete?')">Delete</button>
                     </form>

@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const message = document.getElementById('message').value.trim();
         const imageInput = document.getElementById('image');
         const pdfInput = document.getElementById('pdf');
+        const galleryInput = document.getElementById('multiple_images');
         
         const maxSize = 5 * 1024 * 1024; // 5MB
         const getExt = (fname) => fname.split('.').pop().toLowerCase();
@@ -67,6 +68,16 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (file.size > maxSize) {
                 setError('pdfError', 'PDF must be under 5MB.');
                 isValid = false;
+            }
+        }
+
+        if (galleryInput.files.length > 0) {
+            for (let i = 0; i < galleryInput.files.length; i++) {
+                const file = galleryInput.files[i];
+                if (file.size > 5 * 1024 * 1024) {
+                    setError('multipleError', `File ${file.name} is too large (Max 5MB).`);
+                    isValid = false;
+                }
             }
         }
 

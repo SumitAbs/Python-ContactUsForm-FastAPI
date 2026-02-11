@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Entry Detail - {{ entry.name }}</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        .detail-card { border: 1px solid #ddd; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .profile-img { width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 3px solid #007bff; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 20px; }
+        .gallery img { width: 100%; height: 120px; object-fit: cover; border-radius: 4px; border: 1px solid #ccc; }
+        .label { font-weight: bold; color: #555; }
+        .back-link { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #007bff; }
+    </style>
+</head>
+<body>
+    <a href="/view-details" class="back-link">← Back to Submissions</a>
+
+    <div class="detail-card">
+        <div style="text-align: center;">
+            <img src="/{{ entry.image_path }}" class="profile-img" alt="Profile">
+            <h1>{{ entry.name }}</h1>
+        </div>
+        <hr>
+        <p><span class="label">Email:</span> {{ entry.email }}</p>
+        <p><span class="label">Phone:</span> {{ entry.phone }}</p>
+        <p><span class="label">Message:</span><br>{{ entry.message }}</p>
+        <p><span class="label">Documents:</span> <a href="/{{ entry.pdf_path }}" target="_blank">View Resume (PDF)</a></p>
+        
+        <h3>Gallery Images</h3>
+        <div class="gallery">
+            {% for img_name in gallery %}
+                <img src="/uploads/images/{{ img_name }}" alt="Gallery Image">
+            {% else %}
+                <p>No gallery images uploaded.</p>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
