@@ -1,3 +1,4 @@
+import os
 from fastapi.staticfiles import StaticFiles
 import os
 import shutil
@@ -113,8 +114,17 @@ async def view_details(db: Session = Depends(get_db)):
             <td>{c.name}</td>
             <td>{c.email}</td>
             <td>{c.phone}</td>
-            <td><a href='/{c.image_path}' target='_blank'>View Image</a></td>
-            <td><a href='/{c.pdf_path}' target='_blank'>View PDF</a></td>
+            <td>
+                <a href='/{c.image_path}' target='_blank'>View Image</a>
+            </td>
+            <td>
+                <a href='/{c.pdf_path}' target='_blank'>View PDF</a>
+            </td>
+            <td>
+                <form action="/delete/{c.id}" method="post" style="display:inline;">
+                    <button type="submit" onclick="return confirm('Are you sure?')">Delete</button>
+                </form>
+            </td>
         </tr>
         """
     
@@ -131,7 +141,13 @@ async def view_details(db: Session = Depends(get_db)):
             <h2>Contact Submissions</h2>
             <table>
                 <tr>
-                    <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Image</th><th>PDF</th>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Image</th>
+                    <th>PDF</th>
+                    <th>Action</th>
                 </tr>
                 {table_content}
             </table>
@@ -141,3 +157,28 @@ async def view_details(db: Session = Depends(get_db)):
     </html>
     """
     return html_template
+
+@app.post("/delete/{contact_id}")
+async def delete_contact(contact_id: int, db: Session = Depends(get_db)):
+    """
+    Deletes a contact record from the database and removes 
+    the associated files from the local storage.
+    """
+    # Find the record
+    contact = db.query(ContactEntry).filter(ContactEntry.id == contact_id).first()
+    
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    # 1. Delete the physical files if they exist
+    for file_path in [contact.image_path, contact.pdf_path]:
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+
+    # 2. Delete the database record
+    db.delete(contact)
+    db.commit()
+
+    # Redirect back to the details page
+    return HTMLResponse(content="<script>window.location.href='/view-details';</script>")
+
