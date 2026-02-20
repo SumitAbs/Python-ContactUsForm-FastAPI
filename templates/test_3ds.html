@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>3DS Secure Payment Test</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; padding: 50px; background: #f4f4f9; }
+        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 400px; }
+        h2 { color: #333; }
+        .field { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #218838; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Paystrax 3DS Test</h2>
+        <form action="/checkout-3ds" method="POST">
+            <div class="field">
+                <label>Amount (EUR)</label>
+                <input type="text" name="amount" value="12.50" readonly>
+            </div>
+            <div class="field">
+                <label>Card Holder</label>
+                <input type="text" name="holder" value="John Smith">
+            </div>
+            <div class="field">
+                <label>Card Number</label>
+                <input type="text" name="number" value="4200000000000042">
+            </div>
+            <div class="field">
+                <label>Expiry (MM/YYYY)</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" name="expiryMonth" value="12" placeholder="MM">
+                    <input type="text" name="expiryYear" value="2027" placeholder="YYYY">
+                </div>
+            </div>
+            <div class="field">
+                <label>CVV</label>
+                <input type="text" name="cvv" value="123">
+            </div>
+            <input type="hidden" name="paymentBrand" value="VISA">
+            <button type="submit">Pay Now (Triggers 3DS)</button>
+        </form>
+    </div>
+</body>
+</html>
