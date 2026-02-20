@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>Paystrax Checkout</title></head>
+<body>
+    <h2>Card Payment</h2>
+    <form action="/checkout" method="post">
+        <input type="text" name="holder" placeholder="Card Holder" required><br>
+        <input type="text" name="number" placeholder="Card Number" required><br>
+        <input type="text" name="month" placeholder="MM" style="width:50px"> 
+        <input type="text" name="year" placeholder="YYYY" style="width:70px"><br>
+        <input type="text" name="cvv" placeholder="CVV" style="width:50px"><br>
+        <input type="text" name="amount" placeholder="Amount (e.g. 10.00)"><br>
+        <select name="brand">
+            <option value="VISA">VISA</option>
+            <option value="MASTER">MASTERCARD</option>
+        </select><br><br>
+        <button type="submit">Pay Now</button>
+    </form>
+</body>
+</html>
